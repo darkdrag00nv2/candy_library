@@ -17,7 +17,6 @@ import Result "mo:base/Result";
 import Types "types";
 
 module {
-
   type PropertiesUnstable = Types.PropertiesUnstable;
   type Query = Types.Query;
   type PropertyError = Types.PropertyError;
@@ -28,28 +27,27 @@ module {
   type Properties = Types.Properties;
   type Update = Types.Update;
 
-  private func toPropertyUnstableMap(ps : PropertiesUnstable) : HashMap.HashMap<Text,PropertyUnstable> {
-    let m = HashMap.HashMap<Text,PropertyUnstable>(ps.size(), Text.equal, Text.hash);
+  private func toPropertyUnstableMap(ps : PropertiesUnstable) : HashMap.HashMap<Text, PropertyUnstable> {
+    let m = HashMap.HashMap<Text, PropertyUnstable>(ps.size(), Text.equal, Text.hash);
     for (property in ps.vals()) m.put(property.name, property);
     m;
   };
 
-  private func fromPropertyUnstableMap(m : HashMap.HashMap<Text,PropertyUnstable>) : PropertiesUnstable {
+  private func fromPropertyUnstableMap(m : HashMap.HashMap<Text, PropertyUnstable>) : PropertiesUnstable {
     var ps : Buffer.Buffer<PropertyUnstable> = Buffer.Buffer<PropertyUnstable>(m.size());
     for ((_, p) in m.entries()) ps.add(p);
-    ps.toArray();
+    Buffer.toArray(ps);
   };
-
 
   // Returns a subset of from properties based on the given query.
   // NOTE: ignores unknown properties.
   public func getPropertiesUnstable(properties : PropertiesUnstable, qs : [Query]) : Result.Result<PropertiesUnstable, PropertyError> {
-    let m               = toPropertyUnstableMap(properties);
+    let m = toPropertyUnstableMap(properties);
     var ps : Buffer.Buffer<PropertyUnstable> = Buffer.Buffer<PropertyUnstable>(m.size());
     for (q in qs.vals()) {
       switch (m.get(q.name)) {
         case (null) return #err(#NotFound); // Query contained an unknown property.
-        case (? p)  {
+        case (?p) {
           switch (p.value) {
             case (#Class(c)) {
               if (q.next.size() == 0) {
@@ -60,11 +58,10 @@ module {
                   case (#err(e)) return #err(e);
                   case (#ok(v)) v;
                 };
-                
                 ps.add({
-                    name      = p.name;
-                    value     = #Class(sps);
-                    immutable = p.immutable;
+                  name = p.name;
+                  value = #Class(sps);
+                  immutable = p.immutable;
                 });
               };
             };
@@ -73,11 +70,11 @@ module {
               if (q.next.size() != 0) return #err(#NotFound);
               ps.add(p);
             };
-          }
+          };
         };
       };
     };
-    #ok(ps.toArray());
+    #ok(Buffer.toArray(ps));
   };
 
   // Updates the given properties based on the given update query.
@@ -89,98 +86,110 @@ module {
         case (null) {
           // Update contained an unknown property, so it gets created.
           switch (u.mode) {
-              case (#Next(sus)) {
-                let sps = switch(updatePropertiesUnstable([], sus)) {
-                    case (#err(e)) return #err(e);
-                    case (#ok(v)) v;
-                };
-                
-                m.put(u.name, {
-                  name      = u.name;
-                  value     = #Class(sps);
-                  immutable = false;
-                });
+            case (#Next(sus)) {
+              let sps = switch (updatePropertiesUnstable([], sus)) {
+                case (#err(e)) return #err(e);
+                case (#ok(v)) v;
               };
-              case (#Set(v)) {
-                m.put(u.name, {
-                  name      = u.name;
-                  value     = v;
+              m.put(
+                u.name,
+                {
+                  name = u.name;
+                  value = #Class(sps);
                   immutable = false;
-                });
-              };
-              case (#Lock(v)) {
-                m.put(u.name, {
-                  name      = u.name;
-                  value     = v;
+                },
+              );
+            };
+            case (#Set(v)) {
+              m.put(
+                u.name,
+                {
+                  name = u.name;
+                  value = v;
+                  immutable = false;
+                },
+              );
+            };
+            case (#Lock(v)) {
+              m.put(
+                u.name,
+                {
+                  name = u.name;
+                  value = v;
                   immutable = true;
-                });
-              };
+                },
+              );
+            };
           };
         };
-        case (? p)  {
+        case (?p) {
           // Can not update immutable property.
           if (p.immutable) {
-              return #err(#Immutable);
+            return #err(#Immutable);
           };
           switch (u.mode) {
             case (#Next(sus)) {
               switch (p.value) {
                 case (#Class(c)) {
-                  let sps = switch(updatePropertiesUnstable(c, sus)) {
+                  let sps = switch (updatePropertiesUnstable(c, sus)) {
                     case (#err(e)) return #err(e);
                     case (#ok(v)) v;
                   };
-                  
-                  m.put(u.name, {
-                    name      = p.name;
-                    value     = #Class(sps);
-                    immutable = false;
-                  });
+                  m.put(
+                    u.name,
+                    {
+                      name = p.name;
+                      value = #Class(sps);
+                      immutable = false;
+                    },
+                  );
                 };
-                case (other)  return #err(#NotFound); // Not possible to update sub-attribute of a non-class property.
+                case (other) return #err(#NotFound); // Not possible to update sub-attribute of a non-class property.
               };
               return #err(#NotFound);
             };
             case (#Set(v)) {
-              m.put(u.name, {
-                  name      = p.name;
-                  value     = v;
+              m.put(
+                u.name,
+                {
+                  name = p.name;
+                  value = v;
                   immutable = false;
-              });
+                },
+              );
             };
             case (#Lock(v)) {
-              m.put(u.name, {
-                  name      = p.name;
-                  value     = v;
+              m.put(
+                u.name,
+                {
+                  name = p.name;
+                  value = v;
                   immutable = true;
-              });
+                },
+              );
             };
           };
         };
       };
     };
-      
     #ok(fromPropertyUnstableMap(m));
   };
 
-  public func getClassProperty(val: CandyValue, name : Text) : ?Property{
-      
-    switch(val){
-      case(#Class(val)){
-        for(thisItem in val.vals()){
-          if(thisItem.name == name){
-              return ?thisItem;
+  public func getClassProperty(val : CandyValue, name : Text) : ?Property {
+    switch (val) {
+      case (#Class(val)) {
+        for (thisItem in val.vals()) {
+          if (thisItem.name == name) {
+            return ?thisItem;
           };
         };
-        
         return null;
-
       };
-      case(_){
+      case (_) {
         //assert(false);
         //unreachable
         return null;
-      }
+      };
     };
   };
 
@@ -195,28 +204,26 @@ module {
   //
   ///////////////////////////////////
 
-  private func toPropertyMap(ps : Properties) : HashMap.HashMap<Text,Property> {
-    
-    let m = HashMap.HashMap<Text,Property>(ps.size(), Text.equal, Text.hash);
+  private func toPropertyMap(ps : Properties) : HashMap.HashMap<Text, Property> {
+    let m = HashMap.HashMap<Text, Property>(ps.size(), Text.equal, Text.hash);
     for (property in ps.vals()) {
       m.put(property.name, property);
     };
     m;
   };
 
-  private func fromPropertyMap(m : HashMap.HashMap<Text,Property>) : Properties {
-      
+  private func fromPropertyMap(m : HashMap.HashMap<Text, Property>) : Properties {
     var ps : Buffer.Buffer<Property> = Buffer.Buffer(m.size());
     for ((_, p) in m.entries()) {
       ps.add(p);
     };
-    ps.toArray();
+    Buffer.toArray(ps);
   };
 
   // Returns a subset of from properties based on the given query.
   // NOTE: ignores unknown properties.
   public func getProperties(properties : Properties, qs : [Query]) : Result.Result<Properties, PropertyError> {
-    let m               = toPropertyMap(properties);
+    let m = toPropertyMap(properties);
     var ps : Buffer.Buffer<Property> = Buffer.Buffer<Property>(m.size());
     for (q in qs.vals()) {
       switch (m.get(q.name)) {
@@ -225,7 +232,7 @@ module {
           //return #err(#NotFound);
           //for now, ignore unfound properteis
         };
-        case (? p)  {
+        case (?p) {
           switch (p.value) {
             case (#Class(c)) {
               if (q.next.size() == 0) {
@@ -236,10 +243,10 @@ module {
                   case (#err(e)) return #err(e);
                   case (#ok(v)) v;
                 };
-                
+
                 ps.add({
-                  name      = p.name;
-                  value     = #Class(sps);
+                  name = p.name;
+                  value = #Class(sps);
                   immutable = p.immutable;
                 });
               };
@@ -249,11 +256,11 @@ module {
               if (q.next.size() != 0) return #err(#NotFound);
               ps.add(p);
             };
-          }
+          };
         };
       };
     };
-    #ok(ps.toArray());
+    #ok(Buffer.toArray(ps));
   };
 
   // Updates the given properties based on the given update query.
@@ -266,75 +273,89 @@ module {
           // Update contained an unknown property, so it gets created.
           switch (u.mode) {
             case (#Next(sus)) {
-              let sps = switch(updateProperties([], sus)) {
+              let sps = switch (updateProperties([], sus)) {
                 case (#err(e)) return #err(e);
                 case (#ok(v)) v;
               };
-              
-              m.put(u.name, {
-                name      = u.name;
-                value     = #Class(sps);
-                immutable = false;
-              });
+              m.put(
+                u.name,
+                {
+                  name = u.name;
+                  value = #Class(sps);
+                  immutable = false;
+                },
+              );
             };
             case (#Set(v)) {
-              m.put(u.name, {
-                  name      = u.name;
-                  value     = v;
+              m.put(
+                u.name,
+                {
+                  name = u.name;
+                  value = v;
                   immutable = false;
-              });
+                },
+              );
             };
             case (#Lock(v)) {
-              m.put(u.name, {
-                name      = u.name;
-                value     = v;
-                immutable = true;
-              });
+              m.put(
+                u.name,
+                {
+                  name = u.name;
+                  value = v;
+                  immutable = true;
+                },
+              );
             };
           };
         };
-        case (? p)  {
+        case (?p) {
           // Can not update immutable property.
           if (p.immutable) return #err(#Immutable);
-
           switch (u.mode) {
             case (#Next(sus)) {
               switch (p.value) {
                 case (#Class(c)) {
-                  let sps = switch(updateProperties(c, sus)) {
+                  let sps = switch (updateProperties(c, sus)) {
                     case (#err(e)) return #err(e);
                     case (#ok(v)) v;
                   };
-                  
-                  m.put(u.name, {
-                    name      = p.name;
-                    value     = #Class(sps);
-                    immutable = false;
-                  });
+                  m.put(
+                    u.name,
+                    {
+                      name = p.name;
+                      value = #Class(sps);
+                      immutable = false;
+                    },
+                  );
                 };
                 case (other) return #err(#NotFound); // Not possible to update sub-attribute of a non-class property.
               };
               return #err(#NotFound);
             };
             case (#Set(v)) {
-              m.put(u.name, {
-                name      = p.name;
-                value     = v;
-                immutable = false;
-              });
+              m.put(
+                u.name,
+                {
+                  name = p.name;
+                  value = v;
+                  immutable = false;
+                },
+              );
             };
             case (#Lock(v)) {
-              m.put(u.name, {
-                name      = p.name;
-                value     = v;
-                immutable = true;
-              });
+              m.put(
+                u.name,
+                {
+                  name = p.name;
+                  value = v;
+                  immutable = true;
+                },
+              );
             };
           };
         };
       };
     };
-    
     #ok(fromPropertyMap(m));
   };
 
@@ -343,5 +364,4 @@ module {
   // End code from Departure labs property.mo
   //
   ///////////////////////////////////
-
-}
+};

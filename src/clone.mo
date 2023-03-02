@@ -9,31 +9,38 @@
 //THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ///////////////////////////////
 
-
 import Types "types";
 import Array "mo:base/Array";
+import Buffer "mo:base/Buffer";
 
 module {
-
   type CandyValue = Types.CandyValue;
   type CandyValueUnstable = Types.CandyValueUnstable;
   type PropertyUnstable = Types.PropertyUnstable;
 
-  public func cloneValueUnstable(val : CandyValueUnstable) : CandyValueUnstable{
-    switch(val){
-      case(#Class(val)){
-
-        return #Class(Array.tabulate<PropertyUnstable>(val.size(), func(idx){
-            {name= val[idx].name; value=cloneValueUnstable(val[idx].value); immutable = val[idx].immutable};
-        }));
+  public func cloneValueUnstable(val : CandyValueUnstable) : CandyValueUnstable {
+    switch (val) {
+      case (#Class(val)) {
+        return #Class(
+          Array.tabulate<PropertyUnstable>(
+            val.size(),
+            func(idx) {
+              {
+                name = val[idx].name;
+                value = cloneValueUnstable(val[idx].value);
+                immutable = val[idx].immutable;
+              };
+            },
+          ),
+        );
       };
-      case(#Bytes(val)){
-        switch(val){
-          case(#frozen(val)) #Bytes(#frozen(val));
-          case(#thawed(val)) #Bytes(#thawed(val.clone()));
+      case (#Bytes(val)) {
+        switch (val) {
+          case (#frozen(val)) #Bytes(#frozen(val));
+          case (#thawed(val)) #Bytes(#thawed(Buffer.clone(val)));
         };
       };
-      case(_) val;
+      case (_) val;
     };
   };
-}
+};
